@@ -16,14 +16,12 @@ void loop() {
   float humi  = dht.readHumidity();
   float tempF = dht.readTemperature(true);
   float tempC = dht.readTemperature();
-  Serial.print("Temperature: ");
   Serial.print(tempF);
-  Serial.print("°F, ");
+  Serial.print(",");
   Serial.print(tempC);
-  Serial.print("°C    ");
-  Serial.print("Humidity: ");
+  Serial.print(",");
   Serial.print(humi);
-  Serial.print("%\n");
+  Serial.print("\n");
   
   delay(5000);
 }
