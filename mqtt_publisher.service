@@ -1,0 +1,15 @@
+# this file serves no functional purpose in this directory currently, but it is the file running in the systemd of the rasberrypi
+# this is here for documentation purposes. Running at /etc/systemd/system/mqtt_publisher.service
+
+[Unit]
+Description=MQTT Publisher Python Script
+After=network.target
+
+[Service]
+User=changlab
+WorkingDirectory=/home/changlab/Arduino/temperature_collection
+ExecStart=/usr/bin/python3 /home/changlab/Arduino/temperature_collection/PublishData.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
