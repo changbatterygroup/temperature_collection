@@ -23,5 +23,5 @@ void loop() {
   Serial.print(humi);
   Serial.print("\n");
   
-  delay(5000);
+  delay(30000);
 }
