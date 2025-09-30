@@ -23,7 +23,7 @@ PORT ?= /dev/ttyACM0
 BAUD_RATE := 9600
 
 # The directory containing the .ino file to compile.
-SKETCH_DIR := mega_2560_temp_sensor
+SKETCH_DIR := $(pwd)
 
 
 # --- Automatic variables (should not need to be changed) ---
