@@ -2,13 +2,13 @@
 # this is here for documentation purposes. Running at /etc/systemd/system/mqtt_publisher.service
 
 [Unit]
-Description=MQTT Publisher Python Script
+Description=MQTT Publisher Python Web Server
 After=network.target
 
 [Service]
 User=changlab
-WorkingDirectory=/home/changlab/Arduino/temperature_collection
-ExecStart=/usr/bin/python3 /home/changlab/Arduino/temperature_collection/PublishData.py
+WorkingDirectory=/home/changlab/Arduino/temperature_collection/Server
+ExecStart=/usr/bin/python3 /home/changlab/Arduino/temperature_collection/Server/PublishDataServer.py
 Restart=always
 
 [Install]

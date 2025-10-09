@@ -4,6 +4,10 @@
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
 #include <SimpleSyslog.h>
+#include <Adafruit_BME280.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <math.h>
 
 #ifndef WIFI_SSID
   #error "WIFI_SSID is not defined."
@@ -18,26 +22,34 @@
   #error "OTA_PASSWORD is not defined."
 #endif
 #ifndef SERVER_IP
-  #error "SERVER_IP is not defined. Please provide it in the Makefile."
+  #error "SERVER_IP is not defined."
 #endif
 #ifndef API_KEY
-  #error "API_KEY is not defined. Please provide it in the Makefile."
+  #error "API_KEY is not defined."
 #endif
 #ifndef TOPIC
-  #error "TOPIC is not defined. Please provide it in the Makefile."
+  #error "TOPIC is not defined."
 #endif
+
+#define SEALEVELPRESSURE_HPA (1013.25)
+
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASS;
 const char* ota_hostname = OTA_HOSTNAME;
 const char* ota_password = OTA_PASSWORD;
 
+Adafruit_BME280 bme;
+
 IPAddress server_ip;
 
-SimpleSyslog syslog(ota_hostname, "ESP8266_Lab", SERVER_IP);
+SimpleSyslog syslog(ota_hostname, ota_hostname, SERVER_IP);
 
 unsigned long previousMillis = 0;
-const long interval = 10000;
+const long INTERVAL = 30000; // 30 secs
+
+int failedRequests = 0;
+const int MAX_FAILED_REQUESTS = 5;
 
 void logMessage(const char *format, ...) {
   char buf[256];
@@ -55,6 +67,13 @@ void logMessage(const char *format, ...) {
 void sendDataToServer() {
   if (WiFi.status() != WL_CONNECTED) {
     logMessage("WiFi Disconnected. Cannot send data.");
+    WiFi.reconnect();
+    return;
+  }
+
+  if(!bme.begin()) {
+    logMessage("%s\n", "BME sensor not found. Check wiring.");
+    failedRequests++;
     return;
   }
 
@@ -62,38 +81,66 @@ void sendDataToServer() {
   HTTPClient http;
 
   String serverUrl = "http://" + server_ip.toString() + ":5000/log";
-  
-  logMessage("Connecting to server: %s\n", serverUrl.c_str());
 
   if (http.begin(client, serverUrl)) {
     http.addHeader("Content-Type", "application/json");
+    http.setTimeout(5000);
     http.addHeader("X-API-Key", API_KEY);
 
     StaticJsonDocument<256> doc;
-    float simulated_temp = random(2000, 2500) / 100.0;
+
+    float tempC = bme.readTemperature();
+    float pressurePa = bme.readPressure();
+    float humidity = bme.readHumidity();
+
+    float tempF = tempC * 1.8 + 32.0F;
+    float pressureHpa = pressurePa / 100.0F;
+    
     doc["topic"] = TOPIC;
-    doc["temperature"] = simulated_temp;
-    doc["mac_address"] = WiFi.macAddress();
+    doc["celcius"] = roundf(tempC * 100.0) / 100.0;
+    doc["fahrenheit"] = roundf(tempF * 100.0) / 100.0;
+    doc["pressure"] = roundf(pressureHpa * 100.0) / 100.0;
+    doc["humidity"] = roundf(humidity * 100.0) / 100.0;
 
     String output;
     serializeJson(doc, output);
-    logMessage("Sending payload: %s\n", output.c_str());
 
     int httpCode = http.POST(output);
+    
+    if (httpCode > 0) {
+        logMessage("Payload sent. C:%.2f, F:%.2f, hPa:%.2f, H:%.2f\n", 
+                   (float)doc["celcius"], 
+                   (float)doc["fahrenheit"], 
+                   (float)doc["pressure"], 
+                   (float)doc["humidity"]);
+    }
 
     String payload = http.getString();
-    
     payload.trim();
     payload.replace("\n", "");
     payload.replace("\r", "");
 
     logMessage("[HTTP] Code=%d  Response: %s\n", httpCode, payload.c_str());
 
+    if(httpCode > 0) {
+      failedRequests = 0;
+    } else {
+      failedRequests++;
+    }
+    
     http.end();
   } else {
     logMessage("[HTTP] Unable to connect\n");
+    failedRequests++;
+  }
+
+  if(failedRequests >= MAX_FAILED_REQUESTS) {
+    logMessage("Max failed requests reached. Restarting...\n");
+    delay(1000);
+    ESP.restart();
   }
 }
+
 
 void setup() {
   Serial.begin(115200);
@@ -101,12 +148,16 @@ void setup() {
   logMessage("\nBooting...");
 
   if (!server_ip.fromString(SERVER_IP)) {
-      Serial.println("FATAL: Could not parse SERVER_IP address. Halting.");
+      logMessage("FATAL: Could not parse SERVER_IP address. Halting.");
       while (true) { delay(1000); }
   }
 
+  Wire.begin();
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
 
   logMessage("Connecting to WiFi SSID: %s\n", ssid);
   while (WiFi.status() != WL_CONNECTED) {
@@ -122,21 +173,21 @@ void setup() {
 
   ArduinoOTA.setHostname(ota_hostname);
   ArduinoOTA.setPassword(ota_password);
-  ArduinoOTA.onStart([]() { Serial.println("OTA Update: Start"); });
-  ArduinoOTA.onEnd([]() { Serial.println("\nOTA Update: End"); });
-  ArduinoOTA.onProgress([](unsigned int p, unsigned int t) { Serial.printf("OTA Progress: %u%%\r", (p / (t / 100))); });
-  ArduinoOTA.onError([](ota_error_t error) { Serial.printf("OTA Error[%u]", error); });
+  ArduinoOTA.onStart([]() { logMessage("OTA Update: Start"); });
+  ArduinoOTA.onEnd([]() { logMessage("\nOTA Update: End"); });
+  ArduinoOTA.onProgress([](unsigned int p, unsigned int t) { logMessage("OTA Progress: %u%%\r", (p / (t / 100))); });
+  ArduinoOTA.onError([](ota_error_t error) { logMessage("OTA Error[%u]", error); });
   ArduinoOTA.begin();
   logMessage("OTA Ready. Hostname: %s\n", ota_hostname);
   logMessage("------------------------------------");
 }
 
+
 void loop() {
   ArduinoOTA.handle();
-
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= interval) {
+  if (currentMillis - previousMillis >= INTERVAL) {
       previousMillis = currentMillis;
       sendDataToServer();
   }
