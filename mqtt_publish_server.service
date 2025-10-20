@@ -1,5 +1,5 @@
 # this file serves no functional purpose in this directory currently, but it is the file running in the systemd of the rasberrypi
-# this is here for documentation purposes. Running at /etc/systemd/system/mqtt_publisher.service
+# this is here for documentation purposes. Running at /etc/systemd/system/mqtt_publish_server.service
 
 [Unit]
 Description=MQTT Publisher Python Web Server
