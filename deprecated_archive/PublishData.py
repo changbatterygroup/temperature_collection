@@ -8,8 +8,8 @@ import logging
 import sys
 
 # --- Configuration ---
-BROKER_ADDRESS = "10.147.18.165"
-BROKER_PORT = 1883
+BROKER_ADDRESS = "FILL IN"
+BROKER_PORT = "FILL IN"
 TOPIC = "lab/battery_station_1/temperature"
 SERIAL_PORT = '/dev/ttyACM0'
 BAUD_RATE = 9600
