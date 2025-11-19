@@ -1,0 +1,7 @@
+services:
+  telegraf:
+    build: ./telegraf
+    env_file:
+      - ./.env
+    container_name: telegraf
+    restart: unless-stopped
